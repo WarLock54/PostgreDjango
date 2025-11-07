@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from datetime import timedelta
 from pathlib import Path
+import os
+import dj_database_url  # Başına bunu ekleyin
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,13 +24,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-htski^ssh9wdvmv824=ewkqwjs+6t74!-tr!(p9ez4z7(msz=#'
+# SECRET_KEY = 'django-insecure-htski^ssh9wdvmv824=ewkqwjs+6t74!-tr!(p9ez4z7(msz=#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+#DEBUG = True
 
-ALLOWED_HOSTS = []
+#ALLOWED_HOSTS = ['50.85.248.188', '127.0.0.1', 'localhost']
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'default-local-secret-key-for-dev')
 
+# DEBUG'u dinamik hale getirin:
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+
+# App Service URL'nizi de ekleyin (placeholder):
+ALLOWED_HOSTS = ['proje-adi.azurewebsites.net', '50.85.248.188', '127.0.0.1', 'localhost']
 
 # Application definition
 REST_FRAMEWORK = {
@@ -52,6 +61,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'myapp',
     'rest_framework',
+    'rest_framework_simplejwt',
+    'gunicorn',
 ]
 
 MIDDLEWARE = [
@@ -87,15 +98,22 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+#DATABASES = {
+#    'default': {
+#        'ENGINE': 'django.db.backends.postgresql',
+#        'NAME': 'djangoapp',      # VM'de oluşturduğunuz veritabanı adı (Doğru)
+#        'USER': 'admin',          # VM'de oluşturduğunuz KULLANICI (admin)
+#        'PASSWORD': 'admin',      # VM'de belirlediğiniz PAROLA (admin)
+#        'HOST': '50.85.248.188',  # 'localhost' DEĞİL, VM'inizin Public IP'si
+#        'PORT': '5432',           # Varsayılan port (Doğru)
+#    }
+#}
+# DATABASES bloğunu tamamen bununla değiştirin:
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'djangoApp',
-        'USER': 'postgres',
-        'PASSWORD': 'admin',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(
+        default="postgres://admin:admin@50.85.248.188:5432/djangoapp",
+        conn_max_age=600
+    )
 }
 
 # Password validation
