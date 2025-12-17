@@ -35,3 +35,4 @@ class DailyToken(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     token = models.TextField()
     date_created = models.DateField(auto_now_add=True)
+     ##asdasda
