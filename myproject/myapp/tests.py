@@ -23,9 +23,10 @@ class CustomerProductTests(APITestCase):
         # Customer oluştur
         self.customer = Customer.objects.create(
             user=self.user,
-            name="Test Customer"
+            first_name="Test",
+            last_name="Customer",
+            email="test@example.com"
         )
-
         self.other_customer = Customer.objects.create(
             user=self.other_user,
             name="Other Customer"
@@ -34,9 +35,9 @@ class CustomerProductTests(APITestCase):
         # Product oluştur
         self.product = Product.objects.create(
             name="Test Product",
-            price=100
+            price=100,
+            stock=10
         )
-
         # Login
         self.client.login(username="testuser", password="testpass123")
 
@@ -86,14 +87,13 @@ class CustomerProductTests(APITestCase):
         response = self.client.get("/product-history/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-
     def test_product_history_by_customer_permission_denied(self):
         """
-        Başka kullanıcıya ait customer'ın verisine erişemez
+        Cannot access another user's customer data
         """
         url = f"/product-history/customer/{self.other_customer.id}/"
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # -------------------------
     # DAILY TOKEN TESTS
