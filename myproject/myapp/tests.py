@@ -10,6 +10,11 @@ class CustomerProductTests(APITestCase):
 
     def setUp(self):
         # User oluştur
+        """
+        Prepare test fixtures for tests.
+        
+        Creates two users, two customers (one linked to the primary test user), and a product, then logs the test client in as the primary test user to allow authenticated API requests.
+        """
         self.user = User.objects.create_user(
             username="testuser",
             password="testpass123"
