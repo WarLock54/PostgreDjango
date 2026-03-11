@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'default-local-secret-key-for-d
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 # App Service URL'nizi de ekleyin (placeholder):
-ALLOWED_HOSTS = ['proje-adi.azurewebsites.net', '50.85.248.188', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = [ '127.0.0.1', 'localhost']
 
 # Application definition
 REST_FRAMEWORK = {
