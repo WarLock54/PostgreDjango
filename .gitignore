@@ -9,3 +9,4 @@ env/
 
 # SQLite
 *.sqlite3
+.env
