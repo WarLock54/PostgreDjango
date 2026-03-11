@@ -1,0 +1,165 @@
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # Django API  →  Yerel pgAdmin PostgreSQL'e bağlanır
+  #
+  # DB_HOST:
+  #   Windows / Mac  →  host.docker.internal   (default, değiştirme)
+  #   Linux (WSL)    →  host-gateway            (extra_hosts ile çözülür)
+  # ──────────────────────────────────────────────────────────────
+  django-api:
+    build:
+      context: .                  # docker-compose.yml ile aynı klasör (repo root)
+      dockerfile: Dockerfile
+    container_name: devops-django-api
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-devops-key-2026}
+      - DEBUG=${DEBUG:-False}
+      - DB_NAME=${DB_NAME:-devops_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres123}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,django-api,0.0.0.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux/WSL için gerekli
+    ports:
+      - "8000:8000"
+    networks:
+      - devops-network
+
+  # ─────────────────────────────────
+  # n8n - Workflow Engine
+  # ─────────────────────────────────
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: devops-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Istanbul
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-n8n_secure_2026}
+      - SLACK_CHANNEL_DEVOPS=${SLACK_CHANNEL_DEVOPS:-#devops-alerts}
+      - SLACK_CHANNEL_INCIDENTS=${SLACK_CHANNEL_INCIDENTS:-#incidents}
+      - SLACK_CHANNEL_ENGINEERING=${SLACK_CHANNEL_ENGINEERING:-#engineering}
+      - JIRA_DOMAIN=${JIRA_DOMAIN}
+      - JIRA_PROJECT_KEY=${JIRA_PROJECT_KEY:-DEV}
+      - ARGOCD_HOST=${ARGOCD_HOST:-argocd}
+      - ARGOCD_TOKEN=${ARGOCD_TOKEN}
+      - PROMETHEUS_HOST=prometheus
+      - LOKI_HOST=loki
+      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
+      - NOTION_COST_DATABASE_ID=${NOTION_COST_DATABASE_ID}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/workflows:ro
+    networks:
+      - devops-network
+
+  # ─────────────────────────────────
+  # Prometheus
+  # ─────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: devops-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    networks:
+      - devops-network
+
+  # ─────────────────────────────────
+  # Alertmanager
+  # ─────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: devops-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      - devops-network
+
+  # ─────────────────────────────────
+  # Grafana
+  # ─────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devops-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-grafana_2026}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - devops-network
+    depends_on:
+      - prometheus
+
+  # ─────────────────────────────────
+  # Loki
+  # ─────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: devops-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - devops-network
+
+  # ─────────────────────────────────
+  # Promtail
+  # ─────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: devops-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - devops-network
+    depends_on:
+      - loki
+
+networks:
+  devops-network:
+    driver: bridge
+
+volumes:
+  n8n_data:
+  prometheus_data:
+  grafana_data:

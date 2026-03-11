@@ -1,0 +1,92 @@
+groups:
+  - name: django-api-alerts
+    rules:
+      # High Error Rate — Workflow 2 (Incident Response) tetikler
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="django-api",status=~"5.."}[5m]) / rate(http_requests_total{job="django-api"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: django-api
+          team: backend
+        annotations:
+          summary: "Django API yüksek hata oranı"
+          description: "5xx hata oranı {{ $value | humanizePercentage }} - son 5 dakika"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job="django-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: django-api
+        annotations:
+          summary: "Django API servis çöktü"
+          description: "{{ $labels.instance }} erişilemiyor"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="django-api"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: django-api
+        annotations:
+          summary: "Yüksek yanıt süresi (P95)"
+          description: "P95 yanıt süresi {{ $value }}s - eşik 2s"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionFailed
+        expr: django_db_execute_total{status="error"} > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: django-api
+        annotations:
+          summary: "Veritabanı bağlantı hataları"
+          description: "Son 2 dakikada {{ $value }} DB hatası"
+
+  - name: infrastructure-alerts
+    rules:
+      # High CPU
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Yüksek CPU kullanımı"
+          description: "CPU %{{ $value | humanize }} - {{ $labels.instance }}"
+
+      # High Memory
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kritik bellek kullanımı"
+          description: "Bellek %{{ $value | humanize }} dolu - {{ $labels.instance }}"
+
+      # Disk Space
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk alanı azalıyor"
+          description: "Kalan disk: %{{ $value | humanize }} - {{ $labels.instance }}"
+
+  - name: n8n-alerts
+    rules:
+      # n8n Workflow Failures
+      - alert: N8nWorkflowFailure
+        expr: increase(n8n_workflow_executions_total{status="failed"}[15m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          service: n8n
+        annotations:
+          summary: "n8n workflow hataları"
+          description: "Son 15 dakikada {{ $value }} workflow başarısız"

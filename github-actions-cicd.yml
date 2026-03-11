@@ -1,0 +1,191 @@
+name: 🚀 DevOps Autopilot CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/django-api
+  N8N_WEBHOOK_BASE: ${{ secrets.N8N_WEBHOOK_URL }}
+
+jobs:
+  # ──────────────────────────────────────────
+  # JOB 1: Test & Coverage
+  # ──────────────────────────────────────────
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres123
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install coverage pytest-cov
+
+      - name: 🔄 Run Migrations
+        working-directory: myproject
+        env:
+          DB_HOST: localhost
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres123
+          SECRET_KEY: test-secret-key
+        run: python manage.py migrate
+
+      - name: ✅ Run Tests with Coverage
+        working-directory: myproject
+        env:
+          DB_HOST: localhost
+          DB_NAME: test_db
+          DB_USER: postgres
+          DB_PASSWORD: postgres123
+          SECRET_KEY: test-secret-key
+        run: |
+          coverage run --source='.' -m pytest myapp/tests.py -v
+          coverage report --min-coverage=70
+          coverage xml -o coverage.xml
+
+      - name: 📤 Export Test Results
+        if: always()
+        run: |
+          echo "TESTS_PASSED=${{ job.status == 'success' }}" >> $GITHUB_ENV
+
+  # ──────────────────────────────────────────
+  # JOB 2: n8n CI/CD Workflow Trigger (PR)
+  # ──────────────────────────────────────────
+  notify-n8n-pr:
+    name: 🤖 n8n CI/CD Workflow Tetikle
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: 📤 n8n Workflow 1 - Akıllı CI/CD'yi Tetikle
+        run: |
+          curl -X POST "${{ env.N8N_WEBHOOK_BASE }}/webhook/github-pr-webhook" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "action": "opened",
+              "number": ${{ github.event.pull_request.number }},
+              "pull_request": {
+                "title": "${{ github.event.pull_request.title }}",
+                "html_url": "${{ github.event.pull_request.html_url }}",
+                "diff_url": "${{ github.event.pull_request.diff_url }}",
+                "user": { "login": "${{ github.event.pull_request.user.login }}" },
+                "changed_files": ${{ github.event.pull_request.changed_files || 0 }},
+                "additions": ${{ github.event.pull_request.additions || 0 }},
+                "deletions": ${{ github.event.pull_request.deletions || 0 }}
+              },
+              "repository": {
+                "full_name": "${{ github.repository }}",
+                "name": "${{ github.event.repository.name }}",
+                "owner": { "login": "${{ github.repository_owner }}" }
+              },
+              "ci_status": {
+                "tests_passed": "${{ needs.test.result == 'success' }}",
+                "run_id": "${{ github.run_id }}",
+                "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              }
+            }'
+
+  # ──────────────────────────────────────────
+  # JOB 3: Docker Build & Push
+  # ──────────────────────────────────────────
+  build:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔑 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Docker Meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            latest
+
+      - name: 🔢 Get Version
+        id: version
+        run: echo "version=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: 🔨 Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────
+  # JOB 4: n8n Deployment Workflow Tetikle
+  # ──────────────────────────────────────────
+  deploy-staging:
+    name: 📦 n8n Deploy Workflow Tetikle (Staging)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 🚀 n8n Workflow 4 - Deployment Intelligence Tetikle
+        run: |
+          curl -X POST "${{ env.N8N_WEBHOOK_BASE }}/webhook/deploy-trigger" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "app_name": "django-api",
+              "version": "${{ needs.build.outputs.version }}",
+              "image": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}",
+              "environment": "staging",
+              "repo": "${{ github.repository }}",
+              "triggered_by": "${{ github.actor }}",
+              "commit": "${{ github.sha }}",
+              "commit_message": "${{ github.event.head_commit.message }}",
+              "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
