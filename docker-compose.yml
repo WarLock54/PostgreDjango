@@ -9,7 +9,7 @@ services:
   # ──────────────────────────────────────────────────────────────
   django-api:
     build:
-      context: .                  # docker-compose.yml ile aynı klasör (repo root)
+      context: .                  
       dockerfile: Dockerfile
     container_name: devops-django-api
     restart: unless-stopped
