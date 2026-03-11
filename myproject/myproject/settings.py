@@ -98,23 +98,23 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.postgresql',
-#        'NAME': 'djangoapp',      # VM'de oluşturduğunuz veritabanı adı (Doğru)
-#        'USER': 'admin',          # VM'de oluşturduğunuz KULLANICI (admin)
-#        'PASSWORD': 'admin',      # VM'de belirlediğiniz PAROLA (admin)
-#        'HOST': '50.85.248.188',  # 'localhost' DEĞİL, VM'inizin Public IP'si
-#        'PORT': '5432',           # Varsayılan port (Doğru)
-#    }
-#}
-# DATABASES bloğunu tamamen bununla değiştirin:
 DATABASES = {
-    'default': dj_database_url.config(
-        default="postgres://admin:admin@50.85.248.188:5432/djangoapp",
-        conn_max_age=600
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'djangoApp'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'admin'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
+    }
 }
+# DATABASES bloğunu tamamen bununla değiştirin:
+#DATABASES = {
+ #   'default': dj_database_url.config(
+ #       default="postgres://admin:admin@50.85.248.188:5432/djangoapp",
+ #       conn_max_age=600
+ #   )
+#}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
